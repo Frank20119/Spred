@@ -44,7 +44,8 @@ async def handle_message(update: Update, context: CallbackContext):
         [
             InlineKeyboardButton("Посмотреть профиль", url=f"tg://user?id={user_id}"),
             InlineKeyboardButton("Отправить в канал", callback_data=f"send_{update.message.message_id}_{user_id}"),
-            InlineKeyboardButton("В бан", callback_data=f"ban_{user_id}")
+            InlineKeyboardButton("В бан", callback_data=f"ban_{user_id}"),
+            InlineKeyboardButton("Ответить", callback_data=f"reply_{update.message.message_id}")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -88,11 +89,13 @@ async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    if query.data.startswith("send_"):
+    data = query.data.split('_')
+    action = data[0]
+
+    if action == "send":
         try:
-            parts = query.data.split('_')
-            orig_msg_id = int(parts[1])
-            user_id = int(parts[2])
+            orig_msg_id = int(data[1])
+            user_id = int(data[2])
             
             # Пересылаем исходное сообщение пользователя в канал
             await context.bot.copy_message(
@@ -106,9 +109,9 @@ async def handle_callback(update: Update, context: CallbackContext):
         except Exception as e:
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
 
-    elif query.data.startswith("ban_"):
+    elif action == "ban":
         try:
-            user_id = int(query.data.split('_')[1])
+            user_id = int(data[1])
 
             # Проверка, является ли текущий пользователь администратором
             if not await is_admin(update.message.from_user.id, context):
@@ -133,6 +136,21 @@ async def handle_callback(update: Update, context: CallbackContext):
 
             await query.edit_message_reply_markup(reply_markup=None)
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"✅ Пользователь {user_id} заблокирован.")
+        except Exception as e:
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
+
+    elif action == "reply":
+        try:
+            # Получаем информацию о сообщении, на которое администратор должен ответить
+            original_message = query.message.reply_to_message
+            if original_message:
+                user_id = original_message.from_user.id
+                await context.bot.send_message(chat_id=user_id, text="Ваш ответ от администратора.")
+                await query.edit_message_reply_markup(reply_markup=None)
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"Администратор подготовил ответ пользователю {user_id}.")
+            else:
+                await query.edit_message_reply_markup(reply_markup=None)
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Не удалось найти сообщение для ответа.")
         except Exception as e:
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
 
