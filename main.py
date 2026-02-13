@@ -35,7 +35,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
     # Если пользователь забанен, не обрабатывать его сообщение
     if user_id in banned_users:
-        await update.message.reply_text("Вы заблокированы и не можете отправлять сообщения.")
+        await update.message.reply_text("❌ Вы заблокированы и не можете отправлять сообщения.")
         return
 
     # Формируем текст для админов
@@ -63,33 +63,6 @@ async def handle_message(update: Update, context: CallbackContext):
 
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
-
-# Функция для обработки команды /reply
-async def reply(update: Update, context: CallbackContext):
-    # Проверка, что только администратор может отправить ответ
-    if not await is_admin(update.message.from_user.id, context):
-        await update.message.reply_text("❌ Вы не являетесь администратором и не можете отправлять ответ.")
-        return
-
-    # Проверка на наличие аргументов (ID пользователя и текста ответа)
-    if len(context.args) < 2:
-        await update.message.reply_text("❌ Пожалуйста, укажите user_id и текст ответа. Пример: /reply 12345 Привет!")
-        return
-
-    # Получаем user_id и текст ответа
-    user_id = int(context.args[0])
-    reply_text = " ".join(context.args[1:])
-    
-    # Получаем ник администратора, отправляющего ответ
-    admin_username = update.message.from_user.username or "Аноним"  # Если ник не установлен, используем "Аноним"
-    reply_with_admin = f"Ответ от @{admin_username}:\n\n{reply_text}"
-
-    # Отправляем ответ пользователю
-    try:
-        await context.bot.send_message(chat_id=user_id, text=reply_with_admin)
-        await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка при отправке ответа: {e}")
 
 # Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
@@ -140,17 +113,6 @@ async def handle_callback(update: Update, context: CallbackContext):
             # Добавляем пользователя в список забаненных
             banned_users.add(user_id)
 
-            # Ограничиваем пользователя в чате (в бан)
-            await context.bot.restrict_chat_member(
-                chat_id=ADMIN_GROUP_ID,
-                user_id=user_id,
-                permissions=ChatPermissions(
-                    can_send_messages=False,
-                    can_send_other_messages=False,  # Заменили на поддерживаемый параметр
-                    can_add_web_page_previews=False
-                )
-            )
-
             # Кнопки не пропадают, обновим клавиатуру с кнопкой "Ответить"
             keyboard = [
                 [
@@ -163,7 +125,7 @@ async def handle_callback(update: Update, context: CallbackContext):
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             await query.edit_message_reply_markup(reply_markup=reply_markup)
-            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"✅ Пользователь {user_id} заблокирован.")
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"✅ Пользователь {user_id} заблокирован в боте и добавлен в банлист.")
         except Exception as e:
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
 
@@ -215,17 +177,6 @@ async def unban(update: Update, context: CallbackContext):
         if user.user.id in banned_users:
             banned_users.remove(user.user.id)
 
-            # Разблокируем пользователя
-            await context.bot.restrict_chat_member(
-                chat_id=ADMIN_GROUP_ID,
-                user_id=user.user.id,
-                permissions=ChatPermissions(
-                    can_send_messages=True,
-                    can_send_other_messages=True,  # Разрешаем все сообщения
-                    can_add_web_page_previews=True
-                )
-            )
-
             await update.message.reply_text(f"Пользователь {username} разбанен.")
         else:
             await update.message.reply_text(f"Пользователь {username} не найден в банлисте.")
@@ -238,7 +189,6 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("banlist", banlist))
     application.add_handler(CommandHandler("unban", unban))
-    application.add_handler(CommandHandler("reply", reply))  # Убедитесь, что эта функция существует
 
     # Обрабатываем обычные сообщения от пользователей
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
