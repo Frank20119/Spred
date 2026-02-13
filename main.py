@@ -1,5 +1,5 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions, ChatMember
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
 
 USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
@@ -101,6 +101,11 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     if action == "send":
         try:
+            # Проверка наличия данных для отправки сообщения
+            if len(data) < 3:
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для пересылки.")
+                return
+
             orig_msg_id = int(data[1])
             user_id = int(data[2])
             
@@ -118,12 +123,18 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "ban":
         try:
+            if len(data) < 2:
+                await query.edit_message_reply_markup(reply_markup=None)
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для бана.")
+                return
+
             user_id = int(data[1])
 
-            # Проверка, является ли текущий пользователь администратором
-            if not await is_admin(update.callback_query.from_user.id, context):  # Используем callback_query
+            # Проверяем, является ли пользователь владельцем чата или администратором
+            chat_member = await context.bot.get_chat_member(ADMIN_GROUP_ID, user_id)
+            if chat_member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]:
                 await query.edit_message_reply_markup(reply_markup=None)
-                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Вы не являетесь администратором и не можете банить пользователей.")
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Невозможно заблокировать владельца или администратора.")
                 return
 
             # Добавляем пользователя в список забаненных
@@ -158,8 +169,14 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "reply":
         try:
+            if len(data) < 2:
+                await query.edit_message_reply_markup(reply_markup=None)
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для ответа.")
+                return
+
             # Сохраняем ID сообщения, на которое администратор должен ответить
             message_id = int(data[1])
+
             # Сохраняем сообщение для ответа
             message_to_reply[update.callback_query.from_user.id] = message_id
 
