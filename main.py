@@ -57,6 +57,25 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
+# Функция для обработки обычных ответов администраторов на сообщения пользователей
+async def handle_admin_reply(update: Update, context: CallbackContext):
+    # Проверка, является ли текущий пользователь администратором
+    if not await is_admin(update.message.from_user.id, context):
+        await update.message.reply_text("❌ Вы не являетесь администратором и не можете отвечать на сообщения.")
+        return
+
+    # Получаем информацию о сообщении, на которое администратор отвечает
+    original_message = update.reply_to_message
+    if original_message:
+        user_id = original_message.from_user.id  # ID пользователя, на сообщение которого ответили
+        reply_text = update.message.text  # Текст ответа
+
+        # Отправляем ответ пользователю через бот
+        await context.bot.send_message(chat_id=user_id, text=reply_text)
+        await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
+    else:
+        await update.message.reply_text("❌ Вы должны ответить на сообщение пользователя, чтобы отправить ответ.")
+
 # Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -165,8 +184,9 @@ def main():
     application.add_handler(CommandHandler("banlist", banlist))
     application.add_handler(CommandHandler("unban", unban))
 
-    # Обрабатываем обычные сообщения (не только команды)
-    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Regex(r'^/reply_'), handle_admin_reply))
+    # Обрабатываем обычные ответы от администраторов
+    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Reply, handle_admin_reply))
+
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
     from telegram.ext import CallbackQueryHandler
