@@ -1,10 +1,9 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
-from telegram import ChatMember
+from telegram import ParseMode
 
-USER_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] = '8317714320:AAGBBVJet8pJmqfMsfxCktyEJNgDA6_nZJw'
-
+USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
 # ID группы с админами
 ADMIN_GROUP_ID = -1003808434882  # Замените на свой ID группы
@@ -31,7 +30,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
     # Формируем текст для админов
     full_text = text if text else caption
-    admin_text = f"Новое сообщение от пользователя {user_id}:\n{full_text}\n\nОтветить: /reply_{user_id} <текст>"
+    admin_text = f"Новое сообщение от пользователя {user_id}:\n{full_text}\n\nОтветить: просто ответь на это сообщение."
 
     # Кнопки для админов
     keyboard = [
@@ -43,6 +42,7 @@ async def handle_message(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Отправляем сообщение в группу администраторов
     if update.message.text:
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_text, reply_markup=reply_markup)
     elif update.message.photo:
@@ -53,7 +53,37 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
-# Функция для обработки callback запросов
+# Функция для обработки ответов от администраторов в группе
+async def handle_admin_reply(update: Update, context: CallbackContext):
+    if update.message.chat_id != ADMIN_GROUP_ID:
+        return
+
+    text = update.message.text
+    if text and text.startswith('/reply_'):
+        try:
+            parts = text.split(' ', 1)
+            command = parts[0]
+            reply_text = parts[1] if len(parts) > 1 else ""
+
+            user_id = int(command.replace('/reply_', ''))
+
+            if not reply_text:
+                await update.message.reply_text("Пожалуйста, напишите текст ответа после команды. Пример: /reply_12345 Привет!")
+                return
+
+            # Добавляем никнейм в ответ
+            user_name = update.message.from_user.username or "Аноним"
+            reply_message = f"Ответ от {user_name}:\n\n{reply_text}"
+
+            # Отправляем ответ пользователю через Bot
+            await context.bot.send_message(chat_id=user_id, text=reply_message)
+            await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
+        except (ValueError, IndexError):
+            await update.message.reply_text("Ошибка в формате команды. Используйте /reply_ID текст")
+        except Exception as e:
+            await update.message.reply_text(f"Не удалось отправить сообщение: {e}")
+
+# Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -82,8 +112,8 @@ async def handle_callback(update: Update, context: CallbackContext):
 
             # Добавляем пользователя в список забаненных
             banned_users.add(user_id)
-            
-            # Ограничиваем пользователя в чате
+
+            # Ограничиваем пользователя в чате (в бан)
             await context.bot.restrict_chat_member(
                 chat_id=ADMIN_GROUP_ID,
                 user_id=user_id,
@@ -147,6 +177,7 @@ def main():
     application.add_handler(CommandHandler("banlist", banlist))
     application.add_handler(CommandHandler("unban", unban))
 
+    # Обрабатываем обычные сообщения (не только команды)
     application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Regex(r'^/reply_'), handle_admin_reply))
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
@@ -157,3 +188,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
