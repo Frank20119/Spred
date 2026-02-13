@@ -114,7 +114,7 @@ async def handle_callback(update: Update, context: CallbackContext):
             user_id = int(data[1])
 
             # Проверка, является ли текущий пользователь администратором
-            if not await is_admin(update.message.from_user.id, context):
+            if not await is_admin(update.callback_query.from_user.id, context):  # Исправлено: используем callback_query
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Вы не являетесь администратором и не можете банить пользователей.")
                 return
