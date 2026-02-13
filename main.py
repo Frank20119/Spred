@@ -34,7 +34,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
     # Формируем текст для админов
     full_text = text if text else caption
-    admin_text = f"Новое сообщение от пользователя {user_id}:\n{full_text}\n\nОтветить: просто ответь на это сообщение."
+    admin_text = f"Новое сообщение от пользователя {user_id}:\n{full_text}\n\nОтветить: используйте команду /reply <user_id> <text>."
 
     # Кнопки для админов
     keyboard = [
@@ -57,24 +57,28 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
-# Функция для обработки обычных ответов администраторов на сообщения пользователей
-async def handle_admin_reply(update: Update, context: CallbackContext):
-    # Проверка, является ли текущий пользователь администратором
+# Функция для обработки команды /reply
+async def reply(update: Update, context: CallbackContext):
+    # Проверка, что только администратор может отправить ответ
     if not await is_admin(update.message.from_user.id, context):
-        await update.message.reply_text("❌ Вы не являетесь администратором и не можете отвечать на сообщения.")
+        await update.message.reply_text("❌ Вы не являетесь администратором и не можете отправлять ответ.")
         return
 
-    # Получаем информацию о сообщении, на которое администратор отвечает
-    original_message = update.reply_to_message
-    if original_message:
-        user_id = original_message.from_user.id  # ID пользователя, на сообщение которого ответили
-        reply_text = update.message.text  # Текст ответа
+    # Проверка на наличие аргументов (ID пользователя и текста ответа)
+    if len(context.args) < 2:
+        await update.message.reply_text("❌ Пожалуйста, укажите user_id и текст ответа. Пример: /reply 12345 Привет!")
+        return
 
-        # Отправляем ответ пользователю через бот
+    # Получаем user_id и текст ответа
+    user_id = int(context.args[0])
+    reply_text = " ".join(context.args[1:])
+
+    # Отправляем ответ пользователю
+    try:
         await context.bot.send_message(chat_id=user_id, text=reply_text)
         await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
-    else:
-        await update.message.reply_text("❌ Вы должны ответить на сообщение пользователя, чтобы отправить ответ.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка при отправке ответа: {e}")
 
 # Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
@@ -183,12 +187,12 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("banlist", banlist))
     application.add_handler(CommandHandler("unban", unban))
+    application.add_handler(CommandHandler("reply", reply))  # Добавлена команда /reply для ответа на сообщения
 
-    # Обрабатываем обычные ответы от администраторов
-    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.ReplyToMessage, handle_admin_reply))
-
+    # Обрабатываем обычные сообщения от пользователей
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
+    # Обрабатываем callback запросы
     from telegram.ext import CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(handle_callback))
 
@@ -196,5 +200,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
