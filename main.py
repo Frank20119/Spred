@@ -3,7 +3,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
 from telegram import ChatMember
 
-USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+USER_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN'] = '8317714320:AAGBBVJet8pJmqfMsfxCktyEJNgDA6_nZJw'
+
 
 # ID группы с админами
 ADMIN_GROUP_ID = -1003808434882  # Замените на свой ID группы
