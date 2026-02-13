@@ -1,8 +1,6 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
-from telegram.constants import ParseMode
-
 
 USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
@@ -118,7 +116,7 @@ async def handle_callback(update: Update, context: CallbackContext):
             await context.bot.restrict_chat_member(
                 chat_id=ADMIN_GROUP_ID,
                 user_id=user_id,
-                permissions=ChatMember(
+                permissions=ChatPermissions(
                     can_send_messages=False,
                     can_send_media_messages=False,
                     can_send_other_messages=False,
@@ -155,11 +153,11 @@ async def unban(update: Update, context: CallbackContext):
     if user.user.id in banned_users:
         banned_users.remove(user.user.id)
 
-        # Разбаниваем пользователя
+        # Разблокируем пользователя
         await context.bot.restrict_chat_member(
             chat_id=ADMIN_GROUP_ID,
             user_id=user.user.id,
-            permissions=ChatMember(
+            permissions=ChatPermissions(
                 can_send_messages=True,
                 can_send_media_messages=True,
                 can_send_other_messages=True,
@@ -186,6 +184,10 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback))
 
     application.run_polling()
+
+if __name__ == '__main__':
+    main()
+
 
 if __name__ == '__main__':
     main()
