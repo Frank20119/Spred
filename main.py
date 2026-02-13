@@ -79,10 +79,14 @@ async def reply(update: Update, context: CallbackContext):
     # Получаем user_id и текст ответа
     user_id = int(context.args[0])
     reply_text = " ".join(context.args[1:])
+    
+    # Получаем ник администратора, отправляющего ответ
+    admin_username = update.message.from_user.username or "Аноним"  # Если ник не установлен, используем "Аноним"
+    reply_with_admin = f"Ответ от @{admin_username}:\n\n{reply_text}"
 
     # Отправляем ответ пользователю
     try:
-        await context.bot.send_message(chat_id=user_id, text=reply_text)
+        await context.bot.send_message(chat_id=user_id, text=reply_with_admin)
         await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка при отправке ответа: {e}")
@@ -131,8 +135,7 @@ async def handle_callback(update: Update, context: CallbackContext):
                 user_id=user_id,
                 permissions=ChatPermissions(
                     can_send_messages=False,
-                    can_send_media_messages=False,  # Исправлено: убран параметр "can_send_media_messages"
-                    can_send_other_messages=False,
+                    can_send_other_messages=False,  # Заменили на поддерживаемый параметр
                     can_add_web_page_previews=False
                 )
             )
@@ -201,8 +204,7 @@ async def unban(update: Update, context: CallbackContext):
                 user_id=user.user.id,
                 permissions=ChatPermissions(
                     can_send_messages=True,
-                    can_send_media_messages=True,
-                    can_send_other_messages=True,
+                    can_send_other_messages=True,  # Разрешаем все сообщения
                     can_add_web_page_previews=True
                 )
             )
@@ -232,6 +234,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
 
