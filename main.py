@@ -1,11 +1,15 @@
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
+from telegram import ChatMember
 
 USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
 # ID группы с админами
 ADMIN_GROUP_ID = -1003808434882  # Замените на свой ID группы
+
+# Список забаненных пользователей (можно заменить на базу данных)
+banned_users = set()
 
 # Функция для обработки команды /start (приветствие)
 async def start(update: Update, context: CallbackContext):
@@ -19,6 +23,11 @@ async def handle_message(update: Update, context: CallbackContext):
     caption = update.message.caption or ""
     text = update.message.text or ""
 
+    # Если пользователь забанен, не обрабатывать его сообщение
+    if user_id in banned_users:
+        await update.message.reply_text("Вы заблокированы и не можете отправлять сообщения.")
+        return
+
     # Формируем текст для админов
     full_text = text if text else caption
     admin_text = f"Новое сообщение от пользователя {user_id}:\n{full_text}\n\nОтветить: /reply_{user_id} <текст>"
@@ -27,7 +36,8 @@ async def handle_message(update: Update, context: CallbackContext):
     keyboard = [
         [
             InlineKeyboardButton("Посмотреть профиль", url=f"tg://user?id={user_id}"),
-            InlineKeyboardButton("Отправить в канал", callback_data=f"send_{update.message.message_id}_{user_id}")
+            InlineKeyboardButton("Отправить в канал", callback_data=f"send_{update.message.message_id}_{user_id}"),
+            InlineKeyboardButton("В бан", callback_data=f"ban_{user_id}")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -42,36 +52,6 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
-# Функция для обработки ответов от администраторов в группе
-async def handle_admin_reply(update: Update, context: CallbackContext):
-    if update.message.chat_id != ADMIN_GROUP_ID:
-        return
-
-    text = update.message.text
-    if text and text.startswith('/reply_'):
-        try:
-            parts = text.split(' ', 1)
-            command = parts[0]
-            reply_text = parts[1] if len(parts) > 1 else ""
-
-            user_id = int(command.replace('/reply_', ''))
-
-            if not reply_text:
-                await update.message.reply_text("Пожалуйста, напишите текст ответа после команды. Пример: /reply_12345 Привет!")
-                return
-
-            # Добавляем никнейм в ответ
-            user_name = update.message.from_user.username or "Аноним"
-            reply_message = f"Ответ от {user_name}:\n\n{reply_text}"
-
-            # Отправляем ответ пользователю через Bot 1
-            await context.bot.send_message(chat_id=user_id, text=reply_message)
-            await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
-        except (ValueError, IndexError):
-            await update.message.reply_text("Ошибка в формате команды. Используйте /reply_ID текст")
-        except Exception as e:
-            await update.message.reply_text(f"Не удалось отправить сообщение: {e}")
-
 # Функция для обработки callback запросов
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -79,7 +59,6 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     if query.data.startswith("send_"):
         try:
-            # Парсим данные: send_messageID_userID
             parts = query.data.split('_')
             orig_msg_id = int(parts[1])
             user_id = int(parts[2])
@@ -96,13 +75,78 @@ async def handle_callback(update: Update, context: CallbackContext):
         except Exception as e:
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
 
+    elif query.data.startswith("ban_"):
+        try:
+            user_id = int(query.data.split('_')[1])
+
+            # Добавляем пользователя в список забаненных
+            banned_users.add(user_id)
+            
+            # Ограничиваем пользователя в чате
+            await context.bot.restrict_chat_member(
+                chat_id=ADMIN_GROUP_ID,
+                user_id=user_id,
+                permissions=ChatMember(
+                    can_send_messages=False,
+                    can_send_media_messages=False,
+                    can_send_other_messages=False,
+                    can_add_web_page_previews=False
+                )
+            )
+
+            await query.edit_message_reply_markup(reply_markup=None)
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"✅ Пользователь {user_id} заблокирован.")
+        except Exception as e:
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"❌ Ошибка: {e}")
+
+# Команда для вывода списка забаненных пользователей
+async def banlist(update: Update, context: CallbackContext):
+    if update.message.from_user.id not in [admin.id for admin in await context.bot.get_chat_administrators(ADMIN_GROUP_ID)]:
+        await update.message.reply_text("У вас нет прав для просмотра банлиста.")
+        return
+
+    if banned_users:
+        banned_text = "\n".join([str(user_id) for user_id in banned_users])
+        await update.message.reply_text(f"Забаненные пользователи:\n{banned_text}")
+    else:
+        await update.message.reply_text("Список забаненных пользователей пуст.")
+
+# Команда для разбанивания пользователя
+async def unban(update: Update, context: CallbackContext):
+    if len(context.args) < 1:
+        await update.message.reply_text("Укажите username для разбанивания.")
+        return
+
+    username = context.args[0]
+    user = await context.bot.get_chat_member(ADMIN_GROUP_ID, username)
+    
+    if user.user.id in banned_users:
+        banned_users.remove(user.user.id)
+
+        # Разбаниваем пользователя
+        await context.bot.restrict_chat_member(
+            chat_id=ADMIN_GROUP_ID,
+            user_id=user.user.id,
+            permissions=ChatMember(
+                can_send_messages=True,
+                can_send_media_messages=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True
+            )
+        )
+
+        await update.message.reply_text(f"Пользователь {username} разбанен.")
+    else:
+        await update.message.reply_text(f"Пользователь {username} не найден в банлисте.")
+
 def main():
     application = Application.builder().token(USER_BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("banlist", banlist))
+    application.add_handler(CommandHandler("unban", unban))
 
     application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Regex(r'^/reply_'), handle_admin_reply))
-
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
     from telegram.ext import CallbackQueryHandler
