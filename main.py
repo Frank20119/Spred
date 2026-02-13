@@ -10,6 +10,9 @@ ADMIN_GROUP_ID = -1003808434882  # Замените на свой ID групп�
 # Список забаненных пользователей (можно заменить на базу данных)
 banned_users = set()
 
+# Хранение ID сообщения для ответа
+message_to_reply = {}
+
 # Функция для проверки, является ли пользователь администратором
 async def is_admin(user_id: int, context: CallbackContext) -> bool:
     admins = await context.bot.get_chat_administrators(ADMIN_GROUP_ID)
@@ -60,6 +63,29 @@ async def handle_message(update: Update, context: CallbackContext):
 
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
+
+# Функция для обработки команды /reply
+async def reply(update: Update, context: CallbackContext):
+    # Проверка, что только администратор может отправить ответ
+    if not await is_admin(update.message.from_user.id, context):
+        await update.message.reply_text("❌ Вы не являетесь администратором и не можете отправлять ответ.")
+        return
+
+    # Проверка на наличие аргументов (ID пользователя и текста ответа)
+    if len(context.args) < 2:
+        await update.message.reply_text("❌ Пожалуйста, укажите user_id и текст ответа. Пример: /reply 12345 Привет!")
+        return
+
+    # Получаем user_id и текст ответа
+    user_id = int(context.args[0])
+    reply_text = " ".join(context.args[1:])
+
+    # Отправляем ответ пользователю
+    try:
+        await context.bot.send_message(chat_id=user_id, text=reply_text)
+        await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка при отправке ответа: {e}")
 
 # Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
@@ -193,7 +219,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("banlist", banlist))
     application.add_handler(CommandHandler("unban", unban))
-    application.add_handler(CommandHandler("reply", reply))  # Добавлена команда /reply для ответа на сообщения
+    application.add_handler(CommandHandler("reply", reply))  # Убедитесь, что эта функция существует
 
     # Обрабатываем обычные сообщения от пользователей
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
@@ -206,5 +232,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
