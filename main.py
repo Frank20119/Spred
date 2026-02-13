@@ -72,16 +72,21 @@ async def handle_callback(update: Update, context: CallbackContext):
     data = query.data.split('_')
     action = data[0]
 
+    # Параметры для действия
+    orig_msg_id = None
+    user_id = None
+
+    if len(data) > 1:
+        orig_msg_id = int(data[1]) if len(data) > 1 else None
+    if len(data) > 2:
+        user_id = int(data[2]) if len(data) > 2 else None
+
     if action == "send":
         try:
-            # Проверка наличия данных для отправки сообщения
-            if len(data) < 3:
+            if not orig_msg_id or not user_id:
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для пересылки.")
                 return
 
-            orig_msg_id = int(data[1])
-            user_id = int(data[2])
-            
             # Пересылаем исходное сообщение пользователя в канал
             await context.bot.copy_message(
                 chat_id='@swd_prk',
@@ -96,12 +101,10 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "ban":
         try:
-            if len(data) < 2:
+            if not user_id:
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для бана.")
                 return
-
-            user_id = int(data[1])
 
             # Проверяем, является ли пользователь владельцем чата или администратором
             chat_member = await context.bot.get_chat_member(ADMIN_GROUP_ID, user_id)
@@ -131,7 +134,7 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "reply":
         try:
-            if len(data) < 2:
+            if not orig_msg_id:
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для ответа.")
                 return
@@ -201,4 +204,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
