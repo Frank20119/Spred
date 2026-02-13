@@ -1,7 +1,8 @@
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters
-from telegram import ParseMode
+from telegram.constants import ParseMode
+
 
 USER_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
