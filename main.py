@@ -57,7 +57,7 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
-# Функция для обработки обычных ответов администраторов на сообщения пользователей
+# Функция для обработки ответов администраторов на сообщения пользователей
 async def handle_admin_reply(update: Update, context: CallbackContext):
     # Проверка, является ли текущий пользователь администратором
     if not await is_admin(update.message.from_user.id, context):
@@ -185,7 +185,7 @@ def main():
     application.add_handler(CommandHandler("unban", unban))
 
     # Обрабатываем обычные ответы от администраторов
-    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.ReplyToMessage, handle_admin_reply))
+    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Reply, handle_admin_reply))
 
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
@@ -196,5 +196,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
