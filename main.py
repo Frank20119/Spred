@@ -185,7 +185,7 @@ def main():
     application.add_handler(CommandHandler("unban", unban))
 
     # Обрабатываем обычные ответы от администраторов
-    application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.Reply, handle_admin_reply))
+   application.add_handler(MessageHandler(filters.Chat(ADMIN_GROUP_ID) & filters.ReplyToMessage, handle_admin_reply))
 
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND & ~filters.Chat(ADMIN_GROUP_ID), handle_message))
 
