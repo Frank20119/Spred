@@ -10,6 +10,11 @@ ADMIN_GROUP_ID = -1003808434882  # Замените на свой ID групп�
 # Список забаненных пользователей (можно заменить на базу данных)
 banned_users = set()
 
+# Функция для проверки, является ли пользователь администратором
+async def is_admin(user_id: int, context: CallbackContext) -> bool:
+    admins = await context.bot.get_chat_administrators(ADMIN_GROUP_ID)
+    return user_id in [admin.user.id for admin in admins]
+
 # Функция для обработки команды /start (приветствие)
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
@@ -52,36 +57,6 @@ async def handle_message(update: Update, context: CallbackContext):
     # Подтверждаем получение сообщения
     await update.message.reply_text("Ваше сообщение отправлено администраторам! 👍")
 
-# Функция для обработки ответов от администраторов в группе
-async def handle_admin_reply(update: Update, context: CallbackContext):
-    if update.message.chat_id != ADMIN_GROUP_ID:
-        return
-
-    text = update.message.text
-    if text and text.startswith('/reply_'):
-        try:
-            parts = text.split(' ', 1)
-            command = parts[0]
-            reply_text = parts[1] if len(parts) > 1 else ""
-
-            user_id = int(command.replace('/reply_', ''))
-
-            if not reply_text:
-                await update.message.reply_text("Пожалуйста, напишите текст ответа после команды. Пример: /reply_12345 Привет!")
-                return
-
-            # Добавляем никнейм в ответ
-            user_name = update.message.from_user.username or "Аноним"
-            reply_message = f"Ответ от {user_name}:\n\n{reply_text}"
-
-            # Отправляем ответ пользователю через Bot
-            await context.bot.send_message(chat_id=user_id, text=reply_message)
-            await update.message.reply_text(f"Ответ отправлен пользователю {user_id}.")
-        except (ValueError, IndexError):
-            await update.message.reply_text("Ошибка в формате команды. Используйте /reply_ID текст")
-        except Exception as e:
-            await update.message.reply_text(f"Не удалось отправить сообщение: {e}")
-
 # Функция для обработки callback запросов (например, для кнопки "В бан")
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -109,6 +84,12 @@ async def handle_callback(update: Update, context: CallbackContext):
         try:
             user_id = int(query.data.split('_')[1])
 
+            # Проверка, является ли текущий пользователь администратором
+            if not await is_admin(update.message.from_user.id, context):
+                await query.edit_message_reply_markup(reply_markup=None)
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Вы не являетесь администратором и не можете банить пользователей.")
+                return
+
             # Добавляем пользователя в список забаненных
             banned_users.add(user_id)
 
@@ -131,8 +112,9 @@ async def handle_callback(update: Update, context: CallbackContext):
 
 # Команда для вывода списка забаненных пользователей
 async def banlist(update: Update, context: CallbackContext):
-    if update.message.from_user.id not in [admin.id for admin in await context.bot.get_chat_administrators(ADMIN_GROUP_ID)]:
-        await update.message.reply_text("У вас нет прав для просмотра банлиста.")
+    # Проверка, что только администратор может видеть банлист
+    if not await is_admin(update.message.from_user.id, context):
+        await update.message.reply_text("❌ У вас нет прав для просмотра банлиста.")
         return
 
     if banned_users:
@@ -143,31 +125,38 @@ async def banlist(update: Update, context: CallbackContext):
 
 # Команда для разбанивания пользователя
 async def unban(update: Update, context: CallbackContext):
+    # Проверка, что только администратор может разбанить
+    if not await is_admin(update.message.from_user.id, context):
+        await update.message.reply_text("❌ Вы не являетесь администратором, и не можете разбанивать пользователей.")
+        return
+
     if len(context.args) < 1:
-        await update.message.reply_text("Укажите username для разбанивания.")
+        await update.message.reply_text("❌ Укажите username для разбанивания.")
         return
 
     username = context.args[0]
-    user = await context.bot.get_chat_member(ADMIN_GROUP_ID, username)
-    
-    if user.user.id in banned_users:
-        banned_users.remove(user.user.id)
+    try:
+        user = await context.bot.get_chat_member(ADMIN_GROUP_ID, username)
+        if user.user.id in banned_users:
+            banned_users.remove(user.user.id)
 
-        # Разблокируем пользователя
-        await context.bot.restrict_chat_member(
-            chat_id=ADMIN_GROUP_ID,
-            user_id=user.user.id,
-            permissions=ChatPermissions(
-                can_send_messages=True,
-                can_send_media_messages=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True
+            # Разблокируем пользователя
+            await context.bot.restrict_chat_member(
+                chat_id=ADMIN_GROUP_ID,
+                user_id=user.user.id,
+                permissions=ChatPermissions(
+                    can_send_messages=True,
+                    can_send_media_messages=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True
+                )
             )
-        )
 
-        await update.message.reply_text(f"Пользователь {username} разбанен.")
-    else:
-        await update.message.reply_text(f"Пользователь {username} не найден в банлисте.")
+            await update.message.reply_text(f"Пользователь {username} разбанен.")
+        else:
+            await update.message.reply_text(f"Пользователь {username} не найден в банлисте.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
 
 def main():
     application = Application.builder().token(USER_BOT_TOKEN).build()
@@ -188,9 +177,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-
-
-if __name__ == '__main__':
-    main()
 
