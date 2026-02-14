@@ -70,23 +70,23 @@ async def handle_callback(update: Update, context: CallbackContext):
     await query.answer()
 
     data = query.data.split('_')
-    
-    # Проверка, что callback_data имеет правильный формат
+
+    # Проверка на корректную длину данных
     if len(data) < 2:
         await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить правильные данные для действия.")
         return
-    
+
     action = data[0]
     user_id = int(data[1])  # Извлекаем user_id из callback_data
+    orig_msg_id = int(data[2]) if len(data) > 2 else None  # Обработка orig_msg_id
 
     if action == "send":
         try:
-            if len(data) < 3:
+            if not orig_msg_id or not user_id:
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для пересылки.")
                 return
 
-            orig_msg_id = int(data[2])
             # Пересылаем исходное сообщение пользователя в канал
             await context.bot.copy_message(
                 chat_id='@swd_prk',
@@ -135,7 +135,7 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "reply":
         try:
-            if len(data) < 3:
+            if not orig_msg_id:
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для ответа.")
                 return
