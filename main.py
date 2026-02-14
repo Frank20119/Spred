@@ -70,23 +70,23 @@ async def handle_callback(update: Update, context: CallbackContext):
     await query.answer()
 
     data = query.data.split('_')
+    
+    # Проверка, что callback_data имеет правильный формат
+    if len(data) < 2:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить правильные данные для действия.")
+        return
+    
     action = data[0]
-
-    # Параметры для действия
-    orig_msg_id = None
-    user_id = None
-
-    if len(data) > 1:
-        orig_msg_id = int(data[1]) if len(data) > 1 else None
-    if len(data) > 2:
-        user_id = int(data[2]) if len(data) > 2 else None
+    user_id = int(data[1])  # Извлекаем user_id из callback_data
 
     if action == "send":
         try:
-            if not orig_msg_id or not user_id:
+            if len(data) < 3:
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для пересылки.")
                 return
 
+            orig_msg_id = int(data[2])
             # Пересылаем исходное сообщение пользователя в канал
             await context.bot.copy_message(
                 chat_id='@swd_prk',
@@ -101,6 +101,7 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "ban":
         try:
+            # Проверяем, что user_id существует
             if not user_id:
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для бана.")
@@ -134,13 +135,13 @@ async def handle_callback(update: Update, context: CallbackContext):
 
     elif action == "reply":
         try:
-            if not orig_msg_id:
+            if len(data) < 3:
                 await query.edit_message_reply_markup(reply_markup=None)
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text="❌ Ошибка: Не удалось получить данные для ответа.")
                 return
 
             # Сохраняем ID сообщения, на которое администратор должен ответить
-            message_id = int(data[1])
+            message_id = int(data[2])
 
             # Сохраняем сообщение для ответа
             message_to_reply[update.callback_query.from_user.id] = message_id
@@ -204,6 +205,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
 
