@@ -26,12 +26,13 @@ async def start(update: Update, context: CallbackContext):
 
 # Функция для обработки сообщений от пользователей (текст, фото, видео)
 async def handle_message(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id if update.message.from_user else None
+    # Проверка, что message существует и имеет откуда взять пользователя
+    if update.message is None or update.message.from_user is None:
+        return  # Если нет сообщения или пользователя, пропускаем обработку
+
+    user_id = update.message.from_user.id  # Получаем user_id из сообщения
     caption = update.message.caption or ""
     text = update.message.text or ""
-
-    if user_id is None:
-        return  # Игнорируем сообщения без пользователя
 
     # Если пользователь забанен, не обрабатывать его сообщение
     if user_id in banned_users:
